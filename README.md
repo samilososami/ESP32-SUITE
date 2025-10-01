@@ -9,3 +9,9 @@ La ESP32 PLUS de Keyestudio es una de las placas de desarrollo que esta marca sa
 # USO
 Cada carpeta contiene su propio README, explicando el contenido de esta, su instalación y su uso. 
 Está dividido en `PERSONAL` y `ROBÓTICA`, en función de si contiene scripts referentes a las tareas de robótica o al uso y experimentación personal. 
+
+---
+# :file_folder: CARPETAS
+
+## /FIRMWARE
+Contiene todos los binarios de instalación listos para instalar en la ESP32 PLUS, junto a una explicación de como flashearlo en cada caso utilizando la libreria `esptool` de python. En la carpeta de cada proyecto se incluye el binario que se usa respectivamente, pero esta carpeta los almacena de forma centralizada. 
