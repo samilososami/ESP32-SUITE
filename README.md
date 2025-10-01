@@ -8,6 +8,14 @@ La ESP32 PLUS de Keyestudio es una de las placas de desarrollo que esta marca sa
 
 # ESP32 utilizada
 
+### ESP32 PLUS de Keystudio (STEAMAKER based)
+Originalmente diseñada para utilizar en steamakersblocks.com y programarla con bloques, sin embargo, al ser una ESP32 al fin y al cabo, es completamente reprogramable. Consta de las siguientes características (importante a la hora de flashear firmwares):
+- FLASH de 4MB
+- ~ 2.6MB de almacenamiento para sistema de archivos
+- ~ 155Kb de RAM
+
+
+
 # USO
 Cada carpeta contiene su propio README, explicando el contenido de esta, su instalación y su uso. 
 Está dividido en `PERSONAL` y `ROBÓTICA`, en función de si contiene scripts referentes a las tareas de robótica o al uso y experimentación personal. 
