@@ -6,3 +6,6 @@ La ESP32 PLUS de Keyestudio es una de las placas de desarrollo que esta marca sa
 - BLUETOOTH
 - 520kb de SRAM interna y 4MB FLASH
 
+# USO
+Cada carpeta contiene su propio README, explicando el contenido de esta, su instalación y su uso. 
+Está dividido en `PERSONAL` y `ROBÓTICA`, en función de si contiene scripts referentes a las tareas de robótica o al uso y experimentación personal. 
