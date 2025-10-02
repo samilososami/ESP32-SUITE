@@ -26,6 +26,9 @@ esptool --chip esp32 erase-flash
 
 ## MICROPYTHON_v1.26.1.bin
 Contiene la imagen completa del firmware de micropython, instalable con:
+```
+
+```
 
 ---
 
