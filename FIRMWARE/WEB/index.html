@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ESP32 Suite — Flasher</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a1024; --bg2:#0b1333;
+    --ink:#eaf3ff; --muted:#9fb0ca;
+    --blue:#4f7cff; --cyan:#22d3ee; --ok:#22c55e;
+    --line:rgba(255,255,255,.12); --line2:rgba(255,255,255,.08);
+    --mask1:#0c1642; --mask2:#081238; /* azul fuerte para tapar pasos bloqueados */
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;color:var(--ink);
+    font:15px/1.55 "Inter", system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    background:
+      radial-gradient(1100px 600px at -10% -20%, #12245b 0%, transparent 60%),
+      radial-gradient(900px 480px at 120% -10%, #0f1e54 0%, transparent 60%),
+      linear-gradient(180deg,var(--bg),var(--bg2));
+    min-height:100vh;
+  }
+
+  .container{width:100%;padding:0 24px;margin:0}
+  header{
+    position:sticky;top:0;z-index:10;
+    backdrop-filter:saturate(150%) blur(6px);
+    background:linear-gradient(180deg, rgba(11,19,51,.9), rgba(11,19,51,.6));
+    border-bottom:1px solid var(--line2);
+  }
+  .topbar{display:flex;align-items:center;justify-content:flex-start;height:64px;gap:12px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+
+  .status-fixed{
+    position:fixed; top:12px; right:12px; z-index:20;
+    display:flex; align-items:center; gap:8px;
+    padding:6px 10px; border:1px solid var(--line); border-radius:999px;
+    background:rgba(11,19,51,.85); backdrop-filter:saturate(140%) blur(6px);
+    font-size:12px; color:var(--muted);
+  }
+  .dot{width:12px;height:12px;border-radius:6px;background:#6b7280;border:1px solid var(--line)}
+  .dot.ok{background:var(--ok)}
+
+  main{padding:28px 0 48px}
+  .steps{display:grid;gap:16px}
+  @media(min-width:1100px){ .steps{grid-template-columns:1fr 1fr 1fr} }
+
+  .card{
+    background:linear-gradient(180deg,rgba(255,255,255,.05), rgba(255,255,255,.02));
+    border:1px solid var(--line); border-radius:16px; padding:16px;
+    box-shadow:0 10px 28px rgba(0,0,0,.25); min-height:220px; position:relative;
+  }
+  .card h3{margin:0 0 10px 0;font-size:16px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  /* Pasos bloqueados: azul fuerte, casi opaco */
+  .locked{pointer-events:none}
+  .locked::after{
+    content:""; position:absolute; inset:0; border-radius:16px;
+    background:linear-gradient(180deg, rgba(12,22,66,.96), rgba(8,18,56,.96));
+  }
+  .stepTitle{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .stepBadge{
+    font-size:12px; padding:4px 8px; border-radius:999px;
+    background:rgba(34,211,238,.12); color:#bfefff; border:1px solid var(--line)
+  }
+
+  button{
+    border:0;border-radius:10px;padding:11px 14px;background:var(--blue);color:#fff;
+    font-weight:700;letter-spacing:.2px;cursor:pointer;box-shadow:0 6px 16px rgba(79,124,255,.25)
+  }
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none}
+  button:disabled{opacity:.55;cursor:not-allowed}
+
+  .hint{font-size:13px;color:var(--muted)}
+
+  /* Barra de carga (indeterminada) */
+  .loaderBar{display:none;width:100%;height:4px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px}
+  .loaderBar.active{display:block}
+  .loaderBar::before{
+    content:""; position:absolute; height:4px; width:40%; left:-40%;
+    background:linear-gradient(90deg, rgba(34,211,238,0), rgba(34,211,238,.95), rgba(34,211,238,0));
+    animation:slide 1.1s infinite ease-in-out;
+    border-radius:999px;
+  }
+  @keyframes slide{0%{left:-40%} 50%{left:60%} 100%{left:100%}}
+
+  /* Info */
+  .kv{display:grid;grid-template-columns:170px 1fr;gap:10px}
+  .k{color:var(--muted)} .v{color:var(--ink)}
+  .reveal{opacity:0;transform:translateY(6px);transition:opacity .35s ease, transform .35s ease}
+  .reveal.show{opacity:1;transform:none}
+
+  /* Lista firmwares (selección muy sutil) */
+  .fwList{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+  .fwItem{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px;border:1px solid var(--line);border-radius:12px;
+    background:rgba(255,255,255,.03);
+    transition:.12s; cursor:pointer
+  }
+  .fwItem:hover{transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.2)}
+  .fwItem.sel{border-color:rgba(34,211,238,.18); background:rgba(34,211,238,.03)}
+  .fwName{font-weight:700}
+  .fwTick{opacity:0; transition:.12s; margin-left:10px; font-size:12px; color:#bfefff}
+  .fwItem.sel .fwTick{opacity:.5}
+  .empty{color:var(--muted);font-style:italic;padding:6px 0}
+
+  /* Checkbox “Borrar data” */
+  .checkbox{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+  .checkbox input{appearance:none;-webkit-appearance:none;width:18px;height:18px;border:1px solid var(--line);border-radius:4px;background:#0c1635;display:grid;place-items:center;transition:.12s}
+  .checkbox input:checked{background:#0f3a2b;border-color:#1b7e54}
+  .checkbox input::after{
+    content:""; width:10px;height:10px; transform:scale(0); transition:.12s;
+    clip-path: polygon(14% 44%, 0 59%, 38% 100%, 100% 26%, 84% 11%, 38% 70%);
+    background:#eaf3ff;
+  }
+  .checkbox input:checked::after{ transform:scale(1) }
+  .checkbox span{font-size:13px;color:var(--muted)}
+
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+  <header>
+    <div class="container topbar">
+      <div class="brand">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l3.5 6h6.5l-5.25 4.25L18 20l-6-3.5L6 20l1.25-7.75L2 8h6.5L12 2z" fill="url(#g)"/><defs><linearGradient id="g" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#22d3ee"/><stop offset=".7" stop-color="#4f7cff"/></linearGradient></defs></svg>
+        <h1>ESP32 Suite — Flasher</h1>
+      </div>
+    </div>
+  </header>
+
+  <div class="status-fixed">
+    <span id="portLabel">sin puerto</span>
+    <div class="dot" id="statusDot" title="Estado conexión"></div>
+  </div>
+
+  <main class="container">
+    <div class="steps">
+
+      <section id="step1" class="card">
+        <div class="stepTitle">
+          <span class="stepBadge">Paso 1</span>
+          <h3 style="margin:0">Selecciona la placa</h3>
+        </div>
+        <div class="row" style="justify-content:space-between;margin-bottom:6px">
+          <button id="btnPick">Seleccionar puerto (Chrome)…</button>
+        </div>
+
+        <div id="preHint" class="hint">Escoge el dispositivo para ver la información.</div>
+
+        <div id="loaderBar" class="loaderBar"></div>
+
+        <div id="infoCard" class="reveal hidden" aria-live="polite" style="margin-top:10px">
+          <div class="kv">
+            <div class="k">Chip</div><div class="v" id="chip">—</div>
+            <div class="k">Features</div><div class="v" id="features">—</div>
+            <div class="k">Cristal</div><div class="v" id="crystal">—</div>
+            <div class="k">MAC</div><div class="v" id="mac">—</div>
+            <div class="k">Flash ID</div><div class="v" id="flashid">—</div>
+            <div class="k">Flash Size</div><div class="v" id="flashsize">—</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="step2" class="card locked" aria-disabled="true">
+        <div class="stepTitle">
+          <span class="stepBadge">Paso 2</span>
+          <h3 style="margin:0">Elige firmware</h3>
+        </div>
+        <div id="fwList" class="fwList"><div class="empty">Cargando binarios…</div></div>
+        <div class="row" style="justify-content:flex-end;margin-top:8px">
+          <button id="btnChoose" class="ghost" disabled>Escoger</button>
+        </div>
+      </section>
+
+      <section id="step3" class="card locked" aria-disabled="true">
+        <div class="stepTitle">
+          <span class="stepBadge">Paso 3</span>
+          <h3 style="margin:0">Preparar flasheo</h3>
+        </div>
+
+        <div class="row" style="justify-content:space-between;margin:8px 0 6px">
+          <label class="checkbox" id="eraseBox">
+            <input id="erase" type="checkbox" />
+            <span>Borrar data</span>
+          </label>
+
+          <button id="btnFlash" disabled>FLASH!</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+<script>
+const API = (location.origin.includes('127.0.0.1') || location.origin.includes('localhost'))
+  ? "http://127.0.0.1:5050" : "http://127.0.0.1:5050";
+
+let selectedPort = null;
+let selectedFw   = null;
+let eraseEnabled = false;
+let step1Done = false;
+let step2Selected = false;
+let step2Done = false;
+
+const $ = (id)=>document.getElementById(id);
+const show = (el,vis)=>{ el.classList.toggle('hidden', !vis); };
+const setDot = (ok)=>{ $('statusDot').classList.toggle('ok', !!ok); $('portLabel').textContent = ok? selectedPort : 'sin puerto'; };
+const setKV = (id, v)=>{ $(id).textContent = v ?? '—'; };
+const clearInfo = ()=>['chip','features','crystal','mac','flashid','flashsize'].forEach(k=>setKV(k,'—'));
+const updateFlashState = ()=>{ $('btnFlash').disabled = !(step1Done && step2Done && selectedFw); };
+
+function unlock(step){
+  if(step===2){ $('step2').classList.remove('locked'); $('step2').removeAttribute('aria-disabled'); }
+  if(step===3){ $('step3').classList.remove('locked'); $('step3').removeAttribute('aria-disabled'); }
+}
+
+$('erase').addEventListener('change', (e)=>{ eraseEnabled = e.target.checked; });
+
+async function loadBinaries(){
+  try{
+    const r = await fetch(API + '/binaries');
+    const j = await r.json();
+    const items = j.items || [];
+    const list = $('fwList');
+    list.innerHTML = '';
+    if(items.length===0){
+      list.innerHTML = '<div class="empty">No hay binarios en <code>WEB/BINARIES</code>.</div>';
+      selectedFw = null; step2Selected = false; $('btnChoose').disabled = true; return;
+    }
+    items.forEach(it=>{
+      const li = document.createElement('div');
+      li.className = 'fwItem';
+      li.tabIndex = 0;
+      li.dataset.name = it.name;
+      li.innerHTML = `<div class="fwName">${it.name}</div><div class="fwTick" aria-hidden="true">✔</div>`;
+      const selectMe = ()=>{
+        [...list.children].forEach(x=>x.classList.remove('sel'));
+        li.classList.add('sel');     // muy sutil
+        selectedFw = it.name;
+        step2Selected = true;
+        $('btnChoose').disabled = false;
+      };
+      li.addEventListener('click', selectMe);
+      li.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); selectMe(); }});
+      list.appendChild(li);
+    });
+  }catch(e){
+    $('fwList').innerHTML = '<div class="empty">Error cargando la lista.</div>';
+    $('btnChoose').disabled = true;
+  }
+}
+
+$('btnChoose').addEventListener('click', ()=>{
+  if(!step2Selected || !selectedFw) return;
+  step2Done = true;
+  unlock(3);
+  updateFlashState();
+});
+
+async function readInfo(){
+  if(!selectedPort){ return; }
+  show($('preHint'), false);
+  clearInfo();
+  $('infoCard').classList.remove('show');
+  $('loaderBar').classList.add('active');
+
+  try{
+    const url = `${API}/chip-info?port=${encodeURIComponent(selectedPort)}&baud=115200`;
+    const rr = await fetch(url);
+    const data = await rr.json();
+    $('loaderBar').classList.remove('active');
+
+    if(!rr.ok){
+      setDot(false);
+      alert(data.detail || 'Error obteniendo info de chip');
+      show($('preHint'), true);
+      return;
+    }
+    setKV('chip', data.chip || '—');
+    setKV('features', (data.features||[]).join(', ') || '—');
+    setKV('crystal', (data.crystal_mhz!=null? data.crystal_mhz+' MHz' : '—'));
+    setKV('mac', data.mac || '—');
+    setKV('flashid', data.flash_id || '—');
+    setKV('flashsize', data.flash_size || '—');
+
+    show($('infoCard'), true);
+    requestAnimationFrame(()=> $('infoCard').classList.add('show'));
+
+    step1Done = true;
+    unlock(2);
+  }catch(e){
+    $('loaderBar').classList.remove('active');
+    setDot(false);
+    alert('Error leyendo la placa: ' + (e.message||e));
+    show($('preHint'), true);
+  }
+}
+
+$('btnPick').addEventListener('click', async ()=>{
+  try{
+    if(!('serial' in navigator)){ alert('Tu navegador no soporta Web Serial'); return; }
+    const port = await navigator.serial.requestPort();
+    const info = (port.getInfo ? port.getInfo() : {});
+    const vid = info.usbVendorId || info.vendorId || null;
+    const pid = info.usbProductId || info.productId || null;
+
+    const r = await fetch(API + '/ports');
+    const j = await r.json();
+    const ports = j.ports || [];
+    const matches = ports.filter(p => Number(p.vid)===Number(vid) && Number(p.pid)===Number(pid));
+    matches.sort((a,b)=>{
+      const aBt=/Bluetooth/i.test(a.description||''); const bBt=/Bluetooth/i.test(b.description||'');
+      if(aBt!==bBt) return aBt - bBt;
+      return (a.device||'').localeCompare(b.device||'');
+    });
+    selectedPort = matches[0]?.device || null;
+
+    if(selectedPort){
+      setDot(true);
+      await readInfo();
+    }else{
+      setDot(false);
+      alert('No se pudo mapear el USB elegido a un COM. Revisa drivers/conexión.');
+    }
+  }catch(e){
+    if(e && e.name==='NotFoundError'){ return; }
+    setDot(false);
+    alert('Error al seleccionar puerto: ' + (e.message || e));
+  }
+});
+
+$('btnFlash').addEventListener('click', ()=>{
+  if(!(step1Done && step2Done && selectedFw)) return;
+  const note = eraseEnabled ? ' (con borrado previo)' : '';
+  alert(`FLASHEANDO ${selectedFw}${note}`);
+});
+
+show($('infoCard'), false);
+show($('preHint'), true);
+$('loaderBar').classList.remove('active');
+loadBinaries();
+</script>
+</body>
+</html>
+
