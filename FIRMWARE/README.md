@@ -14,10 +14,10 @@ pip install esptool
 ```
 Siempre que flasheemos un firmware de imagen completa es recomendable borrar el firmware previo:
 ```
-esptool --chip esp32 erase-flash
+esptool erase-flash
 ```
 
-> En caso de tener más de una esp32 conectada al ordenador, siempre se debe especificar el puerto COM correspondiente añadiendo el parámetro `--com COMx` en el que `x` es el número de COM conectado.
+> En caso de tener más de una esp32 conectada al ordenador, siempre se debe especificar el puerto COM correspondiente añadiendo el parámetro `--port COMx` en el que `x` es el número de COM conectado.
 
 
 ---
@@ -27,13 +27,13 @@ esptool --chip esp32 erase-flash
 ## MICROPYTHON_v1.26.1.bin
 Contiene la imagen completa del firmware de micropython, instalable con:
 ```
-
+esptool write_flash 0x1000 MICROPYTHON_v1.26.1.bin
 ```
 
 ---
 
-## WLED_v0.16.0-alpha_v4.bin
-Contiene la app de WLED, pero previamente necesitamos flashear `WLED_bootloader_v4.bin` para evitar bootloops:
+## WLED_v0.16.0-alpha_v4.bin y WLED_bootloader_v4.bin
+Antes de flashear la app, necesitamos flashear `WLED_bootloader_v4.bin` para evitar bootloops:
 ```
 esptool write_flash 0x0 WLED_bootloader_v4.bin
 ```
@@ -41,4 +41,14 @@ y luego ya podemos instalar WLED con:
 ```
 esptool write_flash 0x10000 WLED_v0.16.0-alpha_v4.bin
 ```
+---
 
+## WIFI-MARAUDER_v1.8.6.bin
+Dado que solo contiene la app de wifi marauder, se debe instalar sobre una imagen completa, como `MICROPYTHON_v1.26.1 por` por ejemplo, si no hacemos esto entrará en bootloop al no encontrar un sistema de archivos válido. 
+
+Tras esto, wifi marauder se puede instalar con:
+```
+esptool write_flash 0x10000 WIFI-MARAUDER_v1.8.6.bin
+```
+
+---
