@@ -1,0 +1,17 @@
+ARDUINO_leds
+
+Flashear firmware:
+
+requisitos: 
+esptool Python package ( pip install esptool )
+el binario precompilado de micropython (.bin)
+
+esptool --chip esp32 --port COM10 --baud 460800 write_flash -z 0x1000 .\ESP32_GENERIC-D2WD-20250911-v1.26.1.bin
+
+Restaurar firmware:
+
+# comando básico (rápido)
+esptool --chip esp32 --port COM10 write_flash 0x00000 .\backup_esp32_full_4MB.bin
+
+Uso:
+
