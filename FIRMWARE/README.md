@@ -12,11 +12,6 @@ Para poder flashear los binarios, vamos a utilizar la libreria de python `esptoo
 ``` 
 pip install esptool
 ```
-
----
-
-# FIRMWARES
-
 Siempre que flasheemos un firmware de imagen completa es recomendable borrar el firmware previo:
 ```
 esptool --chip esp32 erase-flash
@@ -25,8 +20,14 @@ esptool --chip esp32 erase-flash
 > En caso de tener más de una esp32 conectada al ordenador, siempre se debe especificar el puerto COM correspondiente añadiendo el parámetro `--com COMx` en el que `x` es el número de COM conectado.
 
 
+---
+
+# FIRMWARES
+
 ## MICROPYTHON_v1.26.1.bin
 Contiene la imagen completa del firmware de micropython, instalable con:
+
+---
 
 ## WLED_v0.16.0-alpha_v4.bin
 Contiene la app de WLED, pero previamente necesitamos flashear `WLED_bootloader_v4.bin` para evitar bootloops:
