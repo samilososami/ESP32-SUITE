@@ -1,6 +1,7 @@
 # CONTENIDO
 
 Esta carpeta contiene todos los binarios de los firmwares utilizados en cada proyecto respectivamente. 
+Tambien se incluye un flasher web, para hostear un servidor web e instalar los binarios de forma sencilla e intuitiva. 
 
 Todos son compatibles con la placa de desarrollo `ESP32 PLUS`, exceptuando el binario de wifi marauder, que tiene diversos problemas en el sistema de archivos, lo que no permite mantener persistencia ni guardar progreso. 
 
@@ -24,7 +25,7 @@ esptool erase-flash
 
 # FIRMWARES
 
-## MICROPYTHON_v1.26.1.bin
+### MICROPYTHON_v1.26.1.bin
 Contiene la imagen completa del firmware de micropython, instalable con:
 ```
 esptool write_flash 0x1000 MICROPYTHON_v1.26.1.bin
@@ -32,7 +33,7 @@ esptool write_flash 0x1000 MICROPYTHON_v1.26.1.bin
 
 ---
 
-## WLED_v0.16.0-alpha_v4.bin y WLED_bootloader_v4.bin
+### WLED_v0.16.0-alpha_v4.bin y WLED_bootloader_v4.bin
 Antes de flashear la app, necesitamos flashear `WLED_bootloader_v4.bin` para evitar bootloops:
 ```
 esptool write_flash 0x0 WLED_bootloader_v4.bin
@@ -43,7 +44,7 @@ esptool write_flash 0x10000 WLED_v0.16.0-alpha_v4.bin
 ```
 ---
 
-## WIFI-MARAUDER_v1.8.6.bin
+### WIFI-MARAUDER_v1.8.6.bin
 Dado que solo contiene la app de wifi marauder, se debe instalar sobre una imagen completa, como `MICROPYTHON_v1.26.1 por` por ejemplo, si no hacemos esto entrará en bootloop al no encontrar un sistema de archivos válido. 
 
 Tras esto, wifi marauder se puede instalar con:
@@ -52,3 +53,26 @@ esptool write_flash 0x10000 WIFI-MARAUDER_v1.8.6.bin
 ```
 
 ---
+
+# WEB FLASHER
+
+Contiene el sistema de archivos necesario para hostear un servidor web. Este permite instalar de forma intuitiva y sencilla los firmwares cargados. 
+
+En la carpeta `WEB` se encuentran dos archivos:
+- index.html
+- main.py
+
+El `index.html` es el frontend de la web. Se encarga de comunicarse con el backend en función de las acciones del usuario en el navegador.
+El `main.py` es el backend. Se encarga del control de la ESP32 según lo que le comunica el frontend. 
+
+Los binarios se encuentran en `WEB/BINARIES`.
+
+El backend se puede ejecutar con:
+
+```
+uvicorn main:app --host 127.0.0.1 --port 5050
+```
+Y el frontend del servidor con:
+```
+python3 -m http.server 8081
+```
