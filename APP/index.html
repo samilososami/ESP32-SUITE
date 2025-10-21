@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ESP32 BLE – Panel 16×16</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; }
+    body { display:flex; min-height:100dvh; margin:0; background:#0b0b0c; color:#eaeaea; }
+    .wrap { margin:auto; width:min(720px, 92%); text-align:center; }
+    h1 { font-size:1.2rem; font-weight:600; opacity:.9; }
+    .card { background:#141417; border:1px solid #1f1f24; border-radius:16px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+    .row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+    button { appearance:none; border:none; border-radius:14px; padding:14px 18px; font-weight:600; color:#fff; cursor:pointer; transition:transform .04s ease, box-shadow .2s ease, background .2s ease, opacity .2s ease; }
+    button:active { transform:translateY(1px); }
+    .btn { background:#2d2f36; box-shadow:0 6px 18px rgba(0,0,0,.25); }
+    .btn:hover { background:#3a3d45; }
+    .danger { background:#d21f3c; }
+    .danger:hover { background:#b91b33; }
+
+    /* Colores */
+    .c-red{background:#d21f3c}.c-green{background:#13a10e}.c-blue{background:#1f6feb}
+    .c-white{background:#9aa0a6;color:#0b0b0c}.c-yellow{background:#eab308;color:#0b0b0c}
+    .c-cyan{background:#06b6d4}.c-magenta{background:#a21caf}.c-orange{background:#f97316}
+    .c-purple{background:#7c3aed}.c-pink{background:#ec4899}
+
+    .muted { opacity:.8; font-size:.9rem; }
+    .status { margin-top:10px; font-size:.92rem; color:#9aa0a6; }
+    .log { margin-top:14px; text-align:left; background:#0f0f12; border:1px solid #1b1b20; border-radius:12px; padding:10px; max-height:220px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.9rem; }
+    .pill { display:inline-flex; gap:8px; align-items:center; background:#202127; border:1px solid #2a2c33; padding:8px 12px; border-radius:999px; }
+    .dot { width:8px; height:8px; border-radius:50%; background:#ea4335; }
+    .dot.on { background:#34a853; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>ESP32 BLE – Panel 16×16</h1>
+      <p class="muted">Conecta por Bluetooth Low Energy (NUS) y usa los botones para enviar comandos al ESP32 (FILL / presets). Tamaño fijo: <strong>16×16</strong>.</p>
+
+      <div class="row">
+        <button id="btnConnect" class="btn">🔗 Conectar</button>
+        <span class="pill"><span id="led" class="dot"></span><span id="lbl">Desconectado</span></span>
+      </div>
+
+      <!-- Colores básicos -->
+      <div class="row" style="margin-top:18px">
+        <button id="bRed" class="c-red">🔴 Rojo</button>
+        <button id="bGreen" class="c-green">🟢 Verde</button>
+        <button id="bBlue" class="c-blue">🔵 Azul</button>
+        <button id="bWhite" class="c-white">⚪ Blanco</button>
+      </div>
+
+      <!-- Colores extra -->
+      <div class="row">
+        <button id="bYellow" class="c-yellow">🟡 Amarillo</button>
+        <button id="bCyan" class="c-cyan">🩵 Cian</button>
+        <button id="bMagenta" class="c-magenta">🟣 Magenta</button>
+        <button id="bOrange" class="c-orange">🟠 Naranja</button>
+        <button id="bPurple" class="c-purple">🟪 Morado</button>
+        <button id="bPink" class="c-pink">🌸 Rosa</button>
+      </div>
+
+      <!-- Presets / control animaciones -->
+      <div class="row">
+        <button id="bRainbow" class="btn">🌈 Rainbow</button>
+        <button id="bChase" class="btn">💨 Chase</button>
+        <button id="bStop" class="btn">⏹️ Stop</button>
+        <button id="bClear" class="btn">🧹 Clear / Off</button>
+        <button id="bStatus" class="btn">ℹ️ Status</button>
+      </div>
+
+      <div class="status" id="status">Pulsa "Conectar" y selecciona tu dispositivo (p. ej., ESP32-16x16).</div>
+      <div class="log" id="log" hidden></div>
+    </div>
+  </div>
+
+  <script>
+  // UUIDs Nordic UART Service (NUS)
+  const NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+  const NUS_RX_UUID      = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // Write
+  const NUS_TX_UUID      = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // Notify (opcional)
+
+  let device = null;
+  let server = null;
+  let rxChar = null;
+  let txChar = null;
+
+  const $ = (id) => document.getElementById(id);
+  const log = (m) => { const el = $("log"); el.hidden = false; el.textContent += `\n${m}`; el.scrollTop = el.scrollHeight; }
+  const setStatus = (t) => $("status").textContent = t;
+  const setConn = (on) => { $("led").classList.toggle("on", on); $("lbl").textContent = on ? "Conectado" : "Desconectado"; };
+
+  async function connect() {
+    try {
+      setStatus("Buscando dispositivo BLE...");
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: "ESP32-" }],
+        optionalServices: [NUS_SERVICE_UUID]
+      });
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+
+      setStatus("Conectando al GATT server...");
+      server = await device.gatt.connect();
+
+      setStatus("Obteniendo servicio NUS...");
+      const service = await server.getPrimaryService(NUS_SERVICE_UUID);
+
+      setStatus("Obteniendo características RX/TX...");
+      rxChar = await service.getCharacteristic(NUS_RX_UUID);   // escribir comandos
+      try {
+        txChar = await service.getCharacteristic(NUS_TX_UUID); // notificaciones
+        await txChar.startNotifications();
+        txChar.addEventListener('characteristicvaluechanged', (ev) => {
+          const v = new TextDecoder().decode(ev.target.value);
+          log(`ESP32 → ${v.trim()}`);
+        });
+      } catch (_) {}
+
+      setConn(true);
+      setStatus("Conectado. Ya puedes enviar comandos.");
+      log("Conectado a " + (device.name || 'ESP32'));
+    } catch (err) {
+      console.error(err);
+      setStatus("Error: " + err.message);
+      setConn(false);
+    }
+  }
+
+  function onDisconnected() {
+    setConn(false);
+    setStatus("Desconectado.");
+  }
+
+  async function sendCommand(cmd) {
+    if (!rxChar) { setStatus("Primero conecta por BLE."); return; }
+    const data = new TextEncoder().encode(cmd);
+    try {
+      await rxChar.writeValue(data);
+      log(`Tú → ${cmd}`);
+    } catch (err) {
+      console.error(err);
+      setStatus("Error enviando: " + err.message);
+    }
+  }
+
+  // Botones de color (FILL R G B)
+  $("bRed").addEventListener('click',   () => sendCommand("FILL 255 0 0"));
+  $("bGreen").addEventListener('click', () => sendCommand("FILL 0 255 0"));
+  $("bBlue").addEventListener('click',  () => sendCommand("FILL 0 0 255"));
+  $("bWhite").addEventListener('click', () => sendCommand("FILL 255 255 255"));
+
+  $("bYellow").addEventListener('click',  () => sendCommand("FILL 255 255 0"));
+  $("bCyan").addEventListener('click',    () => sendCommand("FILL 0 255 255"));
+  $("bMagenta").addEventListener('click', () => sendCommand("FILL 255 0 255"));
+  $("bOrange").addEventListener('click',  () => sendCommand("FILL 255 80 0"));
+  $("bPurple").addEventListener('click',  () => sendCommand("FILL 128 0 255"));
+  $("bPink").addEventListener('click',    () => sendCommand("FILL 255 105 180"));
+
+  // Presets (16×16, animaciones del firmware)
+  $("bRainbow").addEventListener('click', () => sendCommand("RAINBOW 40"));
+  $("bChase").addEventListener('click',   () => sendCommand("CHASE 60"));
+  $("bStop").addEventListener('click',    () => sendCommand("STOP"));
+  $("bClear").addEventListener('click',   () => sendCommand("CLEAR"));
+  $("bStatus").addEventListener('click',  () => sendCommand("STATUS"));
+
+  $("btnConnect").addEventListener('click', connect);
+
+  // Compatibilidad básica
+  if (!('bluetooth' in navigator)) {
+    setStatus('Tu navegador no soporta Web Bluetooth. Usa Chrome/Android y abre esta página por HTTPS o desde localhost.');
+  }
+  </script>
+</body>
+</html>
